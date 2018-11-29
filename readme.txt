@@ -1,4 +1,4 @@
-A few improvements were made over the original rais_Auto shot addon by raisnilt:
+A few improvements were made over the original rais_AutoShot addon by raisnilt:
 -Increased its reliability
 -Fixed the expose weakness bug
 -Weapon swap properly reset the swing timer
