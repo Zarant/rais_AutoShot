@@ -1,4 +1,4 @@
-﻿
+
 local _,class = UnitClass("player");
 if not(class == "HUNTER") then return end
 
@@ -18,8 +18,8 @@ local _G = getfenv(0)
 		["Height"] = 15;
 	}
 	
-	local AimedCastBar = false; -- true / false
-	local WeaponSwapCD = 0 -- Cooldown incurred on auto shot when you swap weapons (used to be 1.5 on old nost, currently 0 on elysium)
+	local AimedCastBar = false; -- true / false  (WIP)
+	
 
 	autoshot_latency = 0
 
@@ -129,7 +129,7 @@ local _G = getfenv(0)
 
 	local function Cast_Start()
 		
-		------print('Cast_start '..castdelay)
+		--------print('Cast_start '..castdelay)
 		autoshot_latency_update()
 		_G[AddOn.."_Texture_Timer"]:SetVertexColor(1,0,0);
 		posX, posY = GetPlayerMapPosition("player");
@@ -164,9 +164,9 @@ local _G = getfenv(0)
 			_G[AddOn.."_Texture_Timer"]:SetVertexColor(0,0,0.5);		
 
 		
-		if _G["shotrotation_update"] then
+		
 			shotrotation_update(1)
-		end
+		
 
 			
 		end
@@ -226,7 +226,9 @@ local _G = getfenv(0)
 				break
 			end
 		end
-		local AimedT = GetSpellTexture(AimedID,"BOOKTYPE_SPELL")
+		if AimedID > 0 then
+			local AimedT = GetSpellTexture(AimedID,"BOOKTYPE_SPELL")
+		end
 		for i = 1, 120 do
 			if GetActionTexture(i) == AimedT then
 				AimedSlot = i
@@ -350,7 +352,7 @@ local _G = getfenv(0)
 	
 	UseAction_Real = UseAction;
 	function UseAction( slot, checkFlags, checkSelf )
-		------print(slot)
+		--------print(slot)
 		AimedTooltip:ClearLines();
 		AimedTooltip:SetAction(slot);
 		
@@ -368,14 +370,14 @@ local _G = getfenv(0)
 			
 			end
 	
-		----print(spellName..':'..slot)
-			--print('s'..spellcast..' '..spellName)
+		------print(spellName..':'..slot)
+			----print('s'..spellcast..' '..spellName)
 		UseAction_Real( slot, checkFlags, checkSelf );
 	end
 
 	CastSpell_Real = CastSpell;
 	function CastSpell(spellID, spellTab)
-			----print("1-"..spellID)
+			------print("1-"..spellID)
 			spelltimer = GetTime()
 			if not(AimedID) then
 				AimedID_Get()
@@ -391,7 +393,7 @@ local _G = getfenv(0)
 			
 			end
 		
-			--print('s'..spellcast)
+			----print('s'..spellcast)
 		CastSpell_Real(spellID,spellTab);
 	end
 
@@ -407,8 +409,8 @@ local _G = getfenv(0)
 			end
 		
 		
-		----print("2-"..spellName)
-		--print('s'..spellcast)
+		------print("2-"..spellName)
+		----print('s'..spellcast)
 		spelltimer = GetTime()
 		CastSpellByName_Real(spellName)
 		
@@ -416,7 +418,7 @@ local _G = getfenv(0)
 
 
 
-	local Frame = CreateFrame("Frame"); --Frame:RegisterAllEvents() Frame:SetScript("OnEvent",function() --print(event) end)
+	local Frame = CreateFrame("Frame"); --Frame:RegisterAllEvents() Frame:SetScript("OnEvent",function() ----print(event) end)
 	Frame:RegisterEvent("SKILL_LINES_CHANGED")
 	Frame:RegisterEvent("PLAYER_LOGIN")
 	Frame:RegisterEvent("SPELLCAST_STOP")
@@ -434,8 +436,8 @@ local _G = getfenv(0)
 	
 	local ammoCheck = false
 	local previousEvent
-	local lockTimer
-	
+	local lockTimer = 0
+	local csccTimer = 0
 	
 	Frame:SetScript("OnEvent",function()
 
@@ -451,7 +453,7 @@ local _G = getfenv(0)
 			
 			if castdelay > 0 then
 				castdelay = 0
-				------print(event..' '..castdelay)
+				--------print(event..' '..castdelay)
 				autoshot_latency_update();
 			end
 			
@@ -470,28 +472,62 @@ local _G = getfenv(0)
 		end
 		
 		if ( event == "SPELLCAST_STOP" ) then
-			if ( aimedStart ~= false ) then
-				aimedStart = false
-			end
 			
-			if multiStart > 0 then
+			
+			--local framerate = GetFramerate()
+			--if (previousEvent == "CURRENT_SPELL_CAST_CHANGED") or ((GetTime() - csccTimer) <= 1/framerate)  then
+				
+				
+				
+				if ( aimedStart ~= false ) then
+					aimedStart = false
+				end
+				
+				
 				multiStart = 0
+				
+				
+				
+				
+				spellcast = 0
+				eventCount = 0
+				
+			--end
+		
+			if ammoCheck then 
+			
+				local framerate = GetFramerate()
+				if (previousEvent == "ITEM_LOCK_CHANGED") or ((GetTime() - lockTimer) <= 1.1/framerate)  then
+
+					--print('boom')
+					if (autoshot_latency/1e3 < castTime) then
+						castdelay = autoshot_latency/1e3
+					else 
+						castdelay = castTime*0.99
+					end
+					------print('Swing_start '..castdelay)
+					autoshot_latency_update();
+					Swing_Start();
+
+					
+				end
+				ammoCheck = false
 			end
-			
-			spellcast = 0
-			eventCount = 0
-			
-			
+		
 			
 		end
 		if ( event == "CURRENT_SPELL_CAST_CHANGED" ) then
-			------print((GetTime() - spelltimer)..' cast changed')
+			--------print((GetTime() - spelltimer)..' cast changed')
+			--[[
+			if (previousEvent == "ITEM_LOCK_CHANGED") or ((GetTime() - lockTimer) <= 1.1/framerate)  then
+				ammoCheck = false
+			end]]
 			
-			
+			ammoCheck = false
 			
 			if (spellcast > 0) and (eventCount < 1) then
 				eventCount = 1
-				----print('init')
+				
 			elseif (spellcast < 0) then
 				spellcast = 0
 			end
@@ -507,10 +543,10 @@ local _G = getfenv(0)
 							Aimed_Start()
 							----print('aimedstart')
 						elseif spellcast == 2 then
-							--print(eventCount)
+							----print(eventCount)
 							eventCount = 0
 							spellcast = 0
-							--print(eventCount)
+							----print(eventCount)
 							multi_start()
 						else
 							spellcast = 0
@@ -526,13 +562,14 @@ local _G = getfenv(0)
 					----print('fail')
 				end
 			end
-
+		
+		csccTimer = GetTime()
 			
 		end
 		
 		
-		if  (event == "SPELLCAST_FAILED") then
-
+		if  (event == "SPELLCAST_FAILED") or (event == "CHAT_MSG_SPELL_FAILED_LOCALPLAYER") then
+			
 			eventCount = 0
 			spellcast = 0
 		end
@@ -549,7 +586,7 @@ local _G = getfenv(0)
 				local framerate = GetFramerate()
 				if ((GetTime() - spelltimer) <= 1/framerate) then
 					eventCount = eventCount*32
-					--print('uc '..eventCount)
+					----print('uc '..eventCount)
 				else
 					eventCount = 0
 					spellcast = 0
@@ -558,14 +595,17 @@ local _G = getfenv(0)
 			end
 			
 			
-			
 			if ammoCheck then 
 			
 				local framerate = GetFramerate()
-				if (previousEvent == "ITEM_LOCK_CHANGED") or ((GetTime() - lockTimer) <= 1.1/framerate)  then
+				if ((previousEvent == "ITEM_LOCK_CHANGED") or ((GetTime() - lockTimer) <= 1.1/framerate)) and (previousEvent ~= "SPELLCAST_STOP")  then
 
-
-					castdelay = autoshot_latency/1e3
+					--print('boom')
+					if (autoshot_latency/1e3 < castTime) then
+						castdelay = autoshot_latency/1e3
+					else 
+						castdelay = castTime*0.99
+					end
 					----print('Swing_start '..castdelay)
 					autoshot_latency_update();
 					Swing_Start();
@@ -574,23 +614,22 @@ local _G = getfenv(0)
 				end
 				ammoCheck = false
 			end
+
 			
 		end
-
-		
+						
+				
 		if ( event == "ITEM_LOCK_CHANGED" ) then
 			
 			
 			if UnitAffectingCombat("player") and ((mainhandslot ~= GetInventoryItemLink("player",16)) or (offhandslot ~= GetInventoryItemLink("player",17)) or (rangedslot ~= GetInventoryItemLink("player",18))) then
-				InterruptTimer = GetTime() + WeaponSwapCD
-				--print('beep beep')
-
+				InterruptTimer = GetTime() + 1.5
+				----print('beep beep')
 			end
 			
 			mainhandslot = GetInventoryItemLink("player",16)
 			offhandslot = GetInventoryItemLink("player",17)
 			rangedslot = GetInventoryItemLink("player",18)
-
 			
 			if ( shooting == true ) then 
 				
@@ -605,7 +644,12 @@ local _G = getfenv(0)
 				
 
 				if ( aimedStart ~= false ) then
-					castdelay = autoshot_latency/1e3
+					
+					if (autoshot_latency/1e3 < castTime) then
+						castdelay = autoshot_latency/1e3
+					else 
+						castdelay = castTime*0.99
+					end
 					autoshot_latency_update();
 					_G[AddOn.."_Frame_Timer"]:SetAlpha(1);
 					_G[AddOn.."_Frame_Timer2"]:SetAlpha(1);
@@ -676,7 +720,7 @@ local _G = getfenv(0)
 						
 						castdelay = 0
 						autoshot_latency_update();
-						------print('Cast update '..castdelay)
+						--------print('Cast update '..castdelay)
 					end
 					Cast_Interrupted();
 					
@@ -695,9 +739,9 @@ local _G = getfenv(0)
 			_G[AddOn.."_Texture_Timer"]:SetVertexColor(1,1,1);
 			
 			
-			if _G["shotrotation_update"] then
+		
 				shotrotation_update(0)
-			end
+			
 	
 			
 			if ( relative > swingTime ) then
@@ -715,13 +759,7 @@ local _G = getfenv(0)
 
 	
 	
-
 	
-	
-
-
-
-
 -- Handles the shot rotation 1 button macro (WIP)
 
 multis = nil
@@ -816,3 +854,6 @@ function ShotRotation(ping)
 
 
 end
+
+	
+	
