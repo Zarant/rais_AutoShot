@@ -4,4 +4,4 @@
 ## Author: raisnilt, Zarant
 ## SavedVariables: autoshot_latency
 
-rais_AutoShot_Kronos.lua
+rais_AutoShot-Kronos.lua
