@@ -3,7 +3,7 @@ local _,class = UnitClass("player");
 if not(class == "HUNTER") then return end
 
 
-local AddOn = "rais_AutoShot"
+local AddOn = "rais_AutoShot-Kronos"
 local _G = getfenv(0)
 
 
