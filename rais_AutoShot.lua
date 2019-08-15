@@ -28,7 +28,7 @@ local AutoID = 75;
 local AutoName = GetSpellInfo(AutoID)
 local pGUID = UnitGUID("player")
 local raptorStrike = GetSpellInfo(2973)
-local meleeReset = true
+local meleeReset = false
 
 local castdelay = 0
 local castStart = false;
@@ -327,9 +327,9 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 	
 	if event == "START_AUTOREPEAT_SPELL" then
 		AutoRepeat = true
-		if rais_AutoShot_Frame_Timer:GetAlpha() == 0 then
-			--Cast_Interrupted()
-		end
+		--[[if rais_AutoShot_Frame_Timer:GetAlpha() == 0 then
+			Cast_Interrupted()
+		end]]
 	end
 	if event == "STOP_AUTOREPEAT_SPELL" then
 		AutoRepeat = false
