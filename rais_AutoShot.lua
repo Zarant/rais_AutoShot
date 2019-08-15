@@ -247,7 +247,7 @@ if Debug == true then
 	AutoShotDebugFrame:RegisterAllEvents()
 
 	AutoShotDebugFrame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3)
-		if arg1 = 75 or arg2 == 75 or arg3 == 75 or arg1 == "Auto Shot" or arg2 == "Auto Shot" or arg3 == "Auto Shot" then
+		if arg1 == 75 or arg2 == 75 or arg3 == 75 or arg1 == "Auto Shot" or arg2 == "Auto Shot" or arg3 == "Auto Shot" then
 			print(event)
 		end
 		if event == "COMBAT_LOG_EVENT_UNFILTERED" then
