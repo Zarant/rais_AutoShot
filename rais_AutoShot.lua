@@ -242,6 +242,21 @@ Frame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 if Debug == true then
 	local lastevent
 	local larg1,larg2
+
+	local AutoShotDebugFrame = CreateFrame("Frame");
+	AutoShotDebugFrame:RegisterAllEvents()
+
+	AutoShotDebugFrame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3)
+		if arg1 = 75 or arg2 == 75 or arg3 == 75 or arg1 == "Auto Shot" or arg2 == "Auto Shot" or arg3 == "Auto Shot" then
+			print(event)
+		end
+		if event == "COMBAT_LOG_EVENT_UNFILTERED" then
+			timeStamp, event, _, sourceGUID, sourceName, sourceFlags, sourceRaidFlags, destGUID, destName, destFlags, destRaidFlags, spellID, spellName = CombatLogGetCurrentEventInfo()
+			if sourceGUID == UnitGUID("player") and (spellName == "Auto Shot" or spellID == 75) then
+				print(event)
+			end
+		end
+	end)	
 	--Frame:RegisterAllEvents()
 end
 
