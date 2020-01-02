@@ -5,8 +5,6 @@ if not(class == "HUNTER") then return end
 local AddOn = "rais_AutoShot"
 --local _G = getfenv(0)
 
-
-
 local Table = {
 	["posX"] = 0;
 	["posY"] = -180;
@@ -29,8 +27,11 @@ local AutoName = GetSpellInfo(AutoID)
 local pGUID = UnitGUID("player")
 local raptorStrike = GetSpellInfo(2973)
 local meleeReset = false
+local FDstate = false
+local FD = GetSpellInfo(5384)
 
-local castdelay = 0
+local ASfailed = 0;
+local castdelay = 0;
 local castStart = false;
 local swingStart = false;
 
@@ -133,7 +134,7 @@ end
 local function Cast_Start()
 	
 	
-		SetBarAlpha(0)
+	SetBarAlpha(0)
 	if moving or IsSpellInRange(AutoName,"target") ~= 1 or not(AutoRepeat)then
 		swingStart = false;
 		
@@ -163,8 +164,7 @@ end
 local function Cast_Interrupted()
 	
 	if swingStart == false then
-	SetBarAlpha(0)
-	
+		SetBarAlpha(0)
 	end
 	castStart = false
 	
@@ -225,16 +225,17 @@ end
 local Frame = CreateFrame("Frame");
 Frame:RegisterEvent("UNIT_SPELLCAST_SENT")
 Frame:RegisterEvent("PLAYER_LOGIN")
-Frame:RegisterEvent("UNIT_SPELLCAST_STOP")
-Frame:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED")
-Frame:RegisterEvent("UNIT_SPELLCAST_FAILED")
-Frame:RegisterEvent("UNIT_SPELLCAST_START")
-Frame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
+Frame:RegisterUnitEvent("UNIT_SPELLCAST_STOP","player")
+Frame:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED","player")
+Frame:RegisterUnitEvent("UNIT_SPELLCAST_FAILED","player")
+Frame:RegisterUnitEvent("UNIT_SPELLCAST_FAILED_QUIET","player")
+Frame:RegisterUnitEvent("UNIT_SPELLCAST_START","player")
+Frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED","player")
 Frame:RegisterEvent("PLAYER_STARTED_MOVING")
 Frame:RegisterEvent("PLAYER_STOPPED_MOVING")
 Frame:RegisterEvent("START_AUTOREPEAT_SPELL")
 Frame:RegisterEvent("STOP_AUTOREPEAT_SPELL")
-
+Frame:RegisterUnitEvent("UNIT_AURA","player")
 Frame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 
 
@@ -277,14 +278,15 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 			end]]
 		if sourceGUID == pGUID then
 
-			if (event == "SPELL_CAST_START") then
+			
 				
-				if (spellName == AutoName) then -- and castStart == false then --autoshot
-					--print('ab')
+			if (spellName == AutoName) then -- and castStart == false then --autoshot
+				if (event == "SPELL_CAST_START") then
 					Cast_Interrupted();	
 					swingStart = false
 					Cast_Start()
 				end
+				
 			end
 			if meleeReset == true then
 				if (event == "SWING_DAMAGE") or (event == "SWING_MISSED") then
@@ -301,7 +303,6 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 		lastevent = event
 		larg1 = arg1
 		larg2 = arg2
-		--print(event)
 		if not ((event == "WORLD_MAP_UPDATE") or (event == "UPDATE_SHAPESHIFT_FORM") or string.find(event,"LIST_UPDATE") or string.find(event,"COMBAT_LOG") or string.find(event,"CHAT") or string.find(event,"CHANNEL")) then
 			local a = GetTime()..' '..event..':'
 			if arg1 ~= nil then
@@ -358,12 +359,30 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 		autoshot_latency_update();
 		Swing_Start();
 	end
-	--[[ --Resetting auto shot timer after an aimed (tbc only) 
-	if (arg2 == "Aimed Shot" and event == "UNIT_SPELLCAST_SUCCEEDED") then
-		castdelay = autoshot_latency/1e3
-		autoshot_latency_update();
-		Swing_Start(AimedDelay);
-	--]]
+	if (event == "UNIT_SPELLCAST_FAILED_QUIET") and arg3 == AutoID then
+		ASfailed = GetTime()
+--		Swing_Start()
+	end
+	--Resets auto shot timer after feign death 
+	if (event == "UNIT_AURA") then
+		local buffed = false
+		for i=1,32 do 
+			local name=UnitBuff("player",i); 
+			if name == FD then
+				buffed = true 
+			end
+		end
+		if buffed then
+			FDstate = true
+		elseif FDstate == true then
+			castdelay = autoshot_latency/1e3
+			autoshot_latency_update();
+			Swing_Start(0.5);
+			FDstate = false
+		else
+			FDstate = false
+		end
+	end
 	
 	--[[ 
 	if rais_AutoShot_Frame_Timer:GetAlpha() == 0 and (arg3 == "Steady Shot" or arg3 == "Multi-Shot" or arg3 == "Aimed Shot") and (event == "UNIT_SPELLCAST_STOP") then
@@ -371,13 +390,9 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 	end
 	]]
 	--
-	if (event == "UNIT_SPELLCAST_FAILED" or event == "UNIT_SPELLCAST_START" or event == "UNIT_SPELLCAST_INTERRUPTED") and (arg3 == AutoID ) then
+	if (event == "UNIT_SPELLCAST_FAILED" or event == "UNIT_SPELLCAST_INTERRUPTED") and (arg3 == AutoID ) then
 		Cast_Interrupted();
 	end
-
-	
-
-	--print(arg1)
 
 
 end)
@@ -408,22 +423,17 @@ Frame:SetScript("OnUpdate",function()
 	
 
 	if ( swingStart ~= false ) then
-		relative = GetTime() - swingStart
 
-		rais_AutoShot_Texture_Timer:SetWidth(Table["Width"] - (Table["Width"]*relative/swingTime));
+		relative = GetTime() - swingStart
+		
+		rais_AutoShot_Texture_Timer:SetWidth(Table["Width"]*(1 - (relative/swingTime)));
 		rais_AutoShot_Texture_Timer:SetVertexColor(1,1,1);
 		
 
 	
-		if ( relative > swingTime ) then
+		if ( relative >= swingTime ) then
 			swingStart = false;
-			if not IsCurrentSpell("Aimed Shot") then
-				--print('bb')
 				Cast_Interrupted()
-			else
-				SetBarAlpha(0)
-			end
-			
 		end
 	end
 	autoshot_latency_update()
