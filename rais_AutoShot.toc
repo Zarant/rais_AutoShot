@@ -1,4 +1,4 @@
-## Interface: 11302
+## Interface: 11303
 ## Title: rais_AutoShot
 ## Notes: Classic port of the original rais_AutoShot addon by raisnilt
 ## Author: Zarant, raisnilt
