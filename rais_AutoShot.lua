@@ -11,15 +11,15 @@ local Table = {
 	["Width"] = 100;
 	["Height"] = 15;
 }
-	
+--[[	
 local function print(a)
 DEFAULT_CHAT_FRAME:AddMessage(a)
-end
+end]]
 
 local Debug = false
 autoshot_latency = 0;
 local castTime = 0.50;
-local AimedDelay = 0;
+--local AimedDelay = 0;
 local AutoRepeat = false
 
 local AutoID = 75;
@@ -30,7 +30,7 @@ local meleeReset = false
 local FDstate = false
 local FD = GetSpellInfo(5384)
 
-local ASfailed = 0;
+--local ASfailed = 0;
 local castdelay = 0;
 local castStart = false;
 local swingStart = false;
@@ -224,11 +224,12 @@ end
 
 local Frame = CreateFrame("Frame");
 Frame:RegisterEvent("UNIT_SPELLCAST_SENT")
+Frame:RegisterEvent("PLAYER_LEVEL_UP")
 Frame:RegisterEvent("PLAYER_LOGIN")
 Frame:RegisterUnitEvent("UNIT_SPELLCAST_STOP","player")
 Frame:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED","player")
 Frame:RegisterUnitEvent("UNIT_SPELLCAST_FAILED","player")
-Frame:RegisterUnitEvent("UNIT_SPELLCAST_FAILED_QUIET","player")
+--Frame:RegisterUnitEvent("UNIT_SPELLCAST_FAILED_QUIET","player")
 Frame:RegisterUnitEvent("UNIT_SPELLCAST_START","player")
 Frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED","player")
 Frame:RegisterEvent("PLAYER_STARTED_MOVING")
@@ -238,7 +239,7 @@ Frame:RegisterEvent("STOP_AUTOREPEAT_SPELL")
 Frame:RegisterUnitEvent("UNIT_AURA","player")
 Frame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
 
-
+--Debug = true
 
 if Debug == true then
 	local lastevent
@@ -248,9 +249,9 @@ if Debug == true then
 	AutoShotDebugFrame:RegisterAllEvents()
 
 	AutoShotDebugFrame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3)
-		if arg1 == 75 or arg2 == 75 or arg3 == 75 or arg1 == "Auto Shot" or arg2 == "Auto Shot" or arg3 == "Auto Shot" then
-			print(event)
-		end
+		--if arg1 == 75 or arg2 == 75 or arg3 == 75 or arg1 == "Auto Shot" or arg2 == "Auto Shot" or arg3 == "Auto Shot" or string.match(event, "QUEST") then
+			if not string.match(event,"ITEM") and not string.match(event,"ADDON")  then print(event) end
+		--end
 		if event == "COMBAT_LOG_EVENT_UNFILTERED" then
 			timeStamp, event, _, sourceGUID, sourceName, sourceFlags, sourceRaidFlags, destGUID, destName, destFlags, destRaidFlags, spellID, spellName = CombatLogGetCurrentEventInfo()
 			if sourceGUID == UnitGUID("player") and (spellName == "Auto Shot" or spellID == 75) then
@@ -320,7 +321,11 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 			DEFAULT_CHAT_FRAME:AddMessage(a)
 		end
 	end
-	
+	if event == "PLAYER_LEVEL_UP" then
+		castdelay = autoshot_latency/1e3
+		autoshot_latency_update();
+		Swing_Start();
+	end
 	if ( event == "PLAYER_LOGIN" ) then
 		--AutoShotBar_Create();
 		DEFAULT_CHAT_FRAME:AddMessage("|cff00ccff"..AddOn.."|cffffffff Loaded");
@@ -359,10 +364,10 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 		autoshot_latency_update();
 		Swing_Start();
 	end
-	if (event == "UNIT_SPELLCAST_FAILED_QUIET") and arg3 == AutoID then
+	--[[if (event == "UNIT_SPELLCAST_FAILED_QUIET") and arg3 == AutoID then
 		ASfailed = GetTime()
 --		Swing_Start()
-	end
+	end]]
 	--Resets auto shot timer after feign death 
 	if (event == "UNIT_AURA") then
 		local buffed = false
@@ -383,7 +388,7 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 			FDstate = false
 		end
 	end
-	
+
 	--[[ 
 	if rais_AutoShot_Frame_Timer:GetAlpha() == 0 and (arg3 == "Steady Shot" or arg3 == "Multi-Shot" or arg3 == "Aimed Shot") and (event == "UNIT_SPELLCAST_STOP") then
 		Cast_Interrupted();	
