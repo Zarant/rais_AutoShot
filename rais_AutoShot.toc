@@ -1,7 +1,7 @@
-## Interface: 11304
+## Interface: 11306
 ## Title: rais_AutoShot
 ## Notes: Classic port of the original rais_AutoShot addon by raisnilt
 ## Author: Zarant, raisnilt
-## SavedVariablesPerCharacter: autoshot_latency
+## SavedVariablesPerCharacter: raisAutoShotOptions
 
 rais_AutoShot.lua
