@@ -3,7 +3,7 @@ local _,class = UnitClass("player");
 if not(class == "HUNTER") then return end
 
 local AddOn = "rais_AutoShot"
---local _G = getfenv(0)
+
 
 local Table = {
 	["posX"] = 0;
@@ -17,7 +17,7 @@ DEFAULT_CHAT_FRAME:AddMessage(a)
 end]]
 
 local Debug = false
-autoshot_latency = 0;
+
 local baseCastTime = 0.50;
 local castTime = baseCastTime
 --local AimedDelay = 0;
@@ -36,43 +36,160 @@ local castdelay = 0;
 local castStart = false;
 local swingStart = false;
 
+local r
 local moving = false 
 local swingTime
-local prevswing = 0
 local relative
 local InterruptTimer = 0
 local baseSpeed = 0
-
-
-local Lat
-
 rais_AutoShot = {}
-
-
-
 
 Table["posX"] = Table["posX"] *GetScreenWidth() /1000;
 Table["posY"] = Table["posY"] *GetScreenHeight() /1000;
 Table["Width"] = Table["Width"] *GetScreenWidth() /1000;
 Table["Height"] = Table["Height"] *GetScreenHeight() /1000;
 
+local Lat,Background
+local autoshot_latency_update
+
+local function UpdateFrame(self,w,h,x,y)
+
+	w = w or self:GetWidth()
+	h = h or self:GetHeight()
+	if w < 33 then
+		w = 33
+	end
+	if h < 5 then
+		h = 5
+	end
+	self:SetWidth(w)
+	self:SetHeight(h)
+	local wdiff = w - r.w
+	local hdiff = h - r.h
+	r.w = w
+	r.h = h
+
+	for _,t in pairs({self:GetRegions()}) do
+		t:SetAlpha(1)
+		t:SetWidth(t:GetWidth()+wdiff)
+		t:SetHeight(t:GetHeight()+hdiff)
+	end
+
+	for _,f in pairs({self:GetChildren()}) do
+		f:SetAlpha(1)
+		f:SetWidth(r.w)
+		f:SetHeight(r.h)
+		for _,t in pairs({f:GetRegions()}) do
+			t:SetAlpha(1)
+			t:SetWidth(t:GetWidth()+wdiff)
+			t:SetHeight(t:GetHeight()+hdiff)
+		end
+	end
+	autoshot_latency_update()
+	if x and y then
+		self:ClearAllPoints()
+		self:SetPoint("CENTER",UIParent,"CENTER",x,y)
+		r.point = "CENTER"
+		r.relativePoint = "CENTER"
+		r.x = x
+		r.y = y
+	end
+end
+
+function r_Reset()
+	local f = rais_AutoShot.Frame_Timer
+	local x = Table["posX"]
+	local y = Table["posY"]
+	local w = Table["Width"]
+	local h = Table["Height"]
+	UpdateFrame(f,w,h,x,y)
+	print(AddOn..': Bar position is now Reset')
+end
+
+function r_Latency(arg)
+	r.autoshot_latency = tonumber(arg)
+	if r.autoshot_latency then
+		print(AddOn..': Auto Shot latency set to '..tostring(r.autoshot_latency)..'ms')
+	else
+		r.autoshot_latency = 0
+		print(AddOn..': Error, couldn\'t set Auto shot latency to '..arg)
+	end
+		
+	if r.autoshot_latency < 0 then
+		r.autoshot_latency = 0
+	elseif r.autoshot_latency > 350 then
+		r.autoshot_latency = 350
+	end
+	r.autoshot_latency = r.autoshot_latency/1e3
+end
+
+
+
+
+
+
 
 function rais_AutoShot.AutoShotBar_Create()
+	r.x = r.x or Table["posX"]
+	r.y = r.y or Table["posY"]
+	r.w = r.w or Table["Width"]
+	r.h = r.h or Table["Height"]
+	r.point = r.point or "CENTER"
+	r.relativePoint = r.relativePoint or "CENTER"
+	
+	local backdrop = {
+		bgFile = "Interface/BUTTONS/WHITE8X8",
+		tile = true,
+		tileSize = 8,
+	}
+	
 	rais_AutoShot.Frame_Timer = CreateFrame("Frame",nil,UIParent);
 	local Frame = rais_AutoShot.Frame_Timer;
 	Frame:SetFrameLevel(1)
 	Frame:SetFrameStrata("HIGH");
-	Frame:SetWidth(Table["Width"]);
-	Frame:SetHeight(Table["Height"]);
-	Frame:SetPoint("CENTER",UIParent,"CENTER",Table["posX"],Table["posY"]);
+	Frame:SetWidth(r.w);
+	Frame:SetHeight(r.h);
+	Frame:SetPoint(r.point,UIParent,r.relativePoint,r.x,r.y);
 	Frame:SetAlpha(1);
+	Frame:SetBackdrop(backdrop)
+	Frame:SetBackdropColor(0.15,0.15,0.15)
+	RF = rais_AutoShot.Frame_Timer
+	Frame:SetClampedToScreen(true)
+	Frame:SetScript("OnMouseDown", function(self, button)
+		if IsAltKeyDown() then
+			self:StartSizing("BOTTOMRIGHT")
 
-	rais_AutoShot.Frame_Timer2 = CreateFrame("Frame",nil,UIParent);
+			for _,t in pairs({Frame:GetRegions()}) do
+				t:SetAlpha(0)
+			end
+
+			for _,f in pairs({self:GetChildren()}) do
+				f:SetAlpha(0)
+			end
+
+		else
+			self:StartMoving()
+		end
+	end)
+	Frame:SetScript("OnMouseUp", function(self,button)
+		local point, relativeTo, relativePoint, x, y = self:GetPoint()
+		r.point = point
+		r.relativePoint = relativePoint
+		r.x = x
+		r.y = y
+		self:StopMovingOrSizing()
+		UpdateFrame(self)
+
+	end)
+
+
+
+	rais_AutoShot.Frame_Timer2 = CreateFrame("Frame",nil,Frame);
 	local Frame2 = rais_AutoShot.Frame_Timer2;
 	Frame2:SetFrameLevel(2)
 	Frame2:SetFrameStrata("HIGH");
-	Frame2:SetWidth(Table["Width"]);
-	Frame2:SetHeight(Table["Height"]);
+	Frame2:SetWidth(r.w);
+	Frame2:SetHeight(r.h);
 	Frame2:SetPoint("CENTER",Frame,"CENTER");
 	Frame2:SetAlpha(1);
 
@@ -80,7 +197,7 @@ function rais_AutoShot.AutoShotBar_Create()
 
 	rais_AutoShot.Texture_Timer = Frame2:CreateTexture(nil,"OVERLAY"); --overlay
 	local Bar = rais_AutoShot.Texture_Timer;
-	Bar:SetHeight(Table["Height"]);
+	Bar:SetHeight(r.h);
 	Bar:SetTexture([[Interface\AddOns\rais_AutoShot\Textures\Bar.tga]]);
 	Bar:SetPoint("CENTER",Frame2,"CENTER");
 
@@ -88,49 +205,73 @@ function rais_AutoShot.AutoShotBar_Create()
 
 	rais_AutoShot.Texture_LATENCY = Frame:CreateTexture(nil,"OVERLAY");
 	Lat = rais_AutoShot.Texture_LATENCY;
-	Lat:SetHeight(Table["Height"]);
+	Lat:SetHeight(r.h);
 	Lat:SetTexture([[Interface\AddOns\rais_AutoShot\Textures\Bar.tga]]);
 	Lat:SetPoint("CENTER",Frame,"CENTER");
 	Lat:SetVertexColor(0.15,0.15,0.15)
-	Lat:SetWidth(Table["Width"] * (castTime - castdelay)/castTime);
+	Lat:SetWidth(r.w * (castTime - castdelay)/castTime);
 
 
 	rais_AutoShot.Texture_BG = Frame:CreateTexture(nil,"ARTWORK");
 	Background = rais_AutoShot.Texture_BG;
-	Background:SetHeight(Table["Height"]);
+	Background:SetHeight(r.h);
 	Background:SetTexture([[Interface\AddOns\rais_AutoShot\Textures\Bar.tga]]);
 	Background:SetPoint("CENTER",Frame,"CENTER");
 	Background:SetVertexColor(0.5,0.5,0.5)
-	Background:SetWidth(Table["Width"]);
+	Background:SetWidth(r.w);
 
 
 	Border = Frame:CreateTexture(nil,"BORDER"); 
 	Border:SetPoint("CENTER",Frame,"CENTER");
-	Border:SetWidth(Table["Width"] +2);
-	Border:SetHeight(Table["Height"] +2);
+	Border:SetWidth(r.w +2);
+	Border:SetHeight(r.h +2);
 	Border:SetColorTexture(0,0,0);
 
 
 	local Border = Frame:CreateTexture(nil,"BACKGROUND");
 	Border:SetPoint("CENTER",Frame,"CENTER");
-	Border:SetWidth(Table["Width"] +4);
-	Border:SetHeight(Table["Height"] +4);
+	Border:SetWidth(r.w +4);
+	Border:SetHeight(r.h +4);
 	Border:SetColorTexture(1,1,1);
 end
 
+local isLocked = true
+local function r_Lock()
+	local f = rais_AutoShot.Frame_Timer
+	if isLocked then
+		print(AddOn..': Auto Shot bar is now unlocked')
+		f:Show()
+		--f:SetAlpha(1);
+		f:SetResizable(true)
+		f:SetMovable(true)
+		f:EnableMouse(true)
+	else
+		print(AddOn..': Auto Shot bar is now locked')
+		f:Hide()
+		f:SetResizable(false)
+		f:SetMovable(false)
+		f:EnableMouse(false)
+	end
+	isLocked = not(isLocked)
+end
 	
-local function autoshot_latency_update()
+function autoshot_latency_update()
 	
-	Lat:SetWidth(Table["Width"] * (castTime - castdelay)/castTime);
+	Lat:SetWidth(r.w * (castTime - castdelay)/castTime);
 	Background:SetDrawLayer("ARTWORK")
 	
 end
 
-local function SetBarAlpha(n)
-	rais_AutoShot.Frame_Timer:SetAlpha(n);
-	rais_AutoShot.Frame_Timer2:SetAlpha(n);
+
+local function ShowFrame()
+	rais_AutoShot.Frame_Timer:Show();
 end
 
+local function HideFrame()
+	if isLocked then
+		rais_AutoShot.Frame_Timer:Hide();
+	end
+end
 
 local function Cast_Start()
 	
@@ -143,12 +284,12 @@ local function Cast_Start()
 	castTime = baseCastTime/haste
 	--print(castTime)
 	
-	SetBarAlpha(0)
+	HideFrame()
 	if moving or IsSpellInRange(AutoName,"target") ~= 1 or not(AutoRepeat)then
 		swingStart = false;
 		
 	else
-		SetBarAlpha(1)
+		ShowFrame()
 		--print(GetTime())
 		autoshot_latency_update()
 		rais_AutoShot.Texture_Timer:SetVertexColor(1,0,0);
@@ -159,10 +300,10 @@ local function Cast_Start()
 		if larg1 == nil then
 			larg1 = "nil"
 		end
-		if Debug then
+		--if Debug then
 			--print(lastevent..'-'..larg1..'-'..larg2)
 			--print(IsCurrentSpell("Steady Shot")) -- steadyshot
-		end
+		--end
 	end
 	
 	
@@ -173,24 +314,24 @@ end
 local function Cast_Interrupted()
 	
 	if swingStart == false then
-		SetBarAlpha(0)
+		HideFrame()
 	end
 	castStart = false
 	
 end
 
 local function Cast_Update()
-	SetBarAlpha(1)
+	ShowFrame()
 	relative = GetTime() - castStart;
 	
 	if ( relative > castTime ) then
 		castStart = false;
-		SetBarAlpha(0)
+		HideFrame()
 	elseif ( swingStart == false ) then
 		--if  (UnitCastingInfo("player") ~= nil or IsCurrentSpell("Steady Shot") or IsCurrentSpell("Multi-Shot")) then --or InterruptTimer > GetTime()
 		--	Cast_Interrupted()
 	--	else
-			rais_AutoShot.Texture_Timer:SetWidth(Table["Width"] * relative/castTime);
+			rais_AutoShot.Texture_Timer:SetWidth(r.w * relative/castTime);
 	--	end
 	end
 	if ((relative > (castTime - castdelay)) and (castStart ~= false)) then
@@ -203,7 +344,6 @@ end
 
 
 
-local prevswingspeed = false
 local function Swing_Start(delay)
 	if not delay then
 		delay = 0
@@ -211,18 +351,11 @@ local function Swing_Start(delay)
 	
 	swingTime = UnitRangedDamage("player") - castTime + delay;
 	
-	if not prevswingspeed then
-		prevswingspeed = swingTime
-	end
-	
-	--if (GetTime() - prevswing) > (prevswingspeed+0.3) then
-		SetBarAlpha(1)
-		rais_AutoShot.Texture_Timer:SetVertexColor(1,1,1);
-		castStart = false
-		swingStart = GetTime();
-		prevswing = swingStart;
-		prevswingspeed = swingTime
-	--end
+	ShowFrame()
+	rais_AutoShot.Texture_Timer:SetVertexColor(1,1,1);
+	castStart = false
+	swingStart = GetTime();
+
 	
 end
 
@@ -331,7 +464,7 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 		end
 		return
 	elseif event == "PLAYER_LEVEL_UP" then
-		castdelay = autoshot_latency/1e3
+		castdelay = r.autoshot_latency
 		autoshot_latency_update();
 		Swing_Start();
 	elseif (event == "UNIT_INVENTORY_CHANGED" and arg1 == "player") or event == "PLAYER_ENTERING_WORLD" then
@@ -354,6 +487,9 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 		--print(baseSpeed)
 		
 	elseif ( event == "PLAYER_LOGIN" ) then
+		raisAutoShotOptions = raisAutoShotOptions or {}
+		r = raisAutoShotOptions
+		r.autoshot_latency = r.autoshot_latency or 0
 		rais_AutoShot.AutoShotBar_Create();
 		DEFAULT_CHAT_FRAME:AddMessage("|cff00ccff"..AddOn.."|cffffffff Loaded");
 	elseif event == "PLAYER_STARTED_MOVING" then
@@ -381,7 +517,7 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 		return
 	end
 	if arg3 == AutoID and (event == "UNIT_SPELLCAST_SUCCEEDED") then
-		castdelay = autoshot_latency/1e3
+		castdelay = r.autoshot_latency
 		autoshot_latency_update();
 		Swing_Start();
 	elseif (event == "UNIT_AURA") then
@@ -396,7 +532,7 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 		if buffed then
 			FDstate = true
 		elseif FDstate == true then
-			castdelay = autoshot_latency/1e3
+			castdelay = r.autoshot_latency
 			autoshot_latency_update();
 			Swing_Start(0.5);
 			FDstate = false
@@ -432,7 +568,7 @@ Frame:SetScript("OnUpdate",function()
 				Cast_Update();
 			end
 		else
-			if castdelay > 0 then
+			if castdelay < 0 then
 				
 				castdelay = 0
 				
@@ -447,7 +583,7 @@ Frame:SetScript("OnUpdate",function()
 
 		relative = GetTime() - swingStart
 		
-		rais_AutoShot.Texture_Timer:SetWidth(Table["Width"]*(1 - (relative/swingTime)));
+		rais_AutoShot.Texture_Timer:SetWidth(r.w*(1 - (relative/swingTime)));
 		rais_AutoShot.Texture_Timer:SetVertexColor(1,1,1);
 		
 		if ( relative >= swingTime ) then
@@ -460,3 +596,50 @@ Frame:SetScript("OnUpdate",function()
 
 
 end)
+
+
+SLASH_RAISAUTOSHOT1 = "/raisautoshot"
+
+local 	commandList = {
+		["lock"] = {r_Lock,SLASH_RAISAUTOSHOT1.." lock | Lock/Unlock the bar, use alt+click to resize"};
+		["reset"] = {r_Reset,SLASH_RAISAUTOSHOT1.." reset | reset to the default positions"};
+		["latency"] = {r_Latency,SLASH_RAISAUTOSHOT1.." latency <number> | Sets the latency threshold indicator (in milliseconds)"};
+	}
+
+
+SlashCmdList["RAISAUTOSHOT"] = function(msg)
+	_,_,cmd,arg = strfind(msg,"%s?(%w+)%s?(.*)")
+
+
+	if cmd then
+		cmd = strlower(cmd)
+	end
+	if arg == "" then
+		arg = nil
+	end
+
+	if cmd == "help" or not cmd or cmd == "" then
+		local list = {"Command List:"}
+		for command,entry in pairs(commandList) do
+			if arg == command then
+				print(entry[2])
+				return
+			else
+				--table.insert(list,SLASH_RAISAUTOSHOT1.." "..command)
+				table.insert(list,entry[2])
+			end
+		end
+		for i,v in pairs(list) do
+			print(v)
+		end
+		--print("For more info type "..SLASH_RAISAUTOSHOT1.." help <command>")
+	else
+		for command,entry in pairs(commandList) do
+			if cmd == command then
+				entry[1](arg)
+				return 
+			end
+		end
+		print("Error: command \'"..cmd.."\' not recognized")
+	end
+end
