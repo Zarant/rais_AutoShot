@@ -403,7 +403,6 @@ if Debug == true then
 		--end
 		if event == "COMBAT_LOG_EVENT_UNFILTERED" then
 			timeStamp, event, _, sourceGUID, sourceName, sourceFlags, sourceRaidFlags, destGUID, destName, destFlags, destRaidFlags, spellID, spellName = CombatLogGetCurrentEventInfo()
-			print(CombatLogGetCurrentEventInfo())
 			if sourceGUID == UnitGUID("player") and (spellName == "Auto Shot" or spellID == 75) then
 				print(event)
 			end
