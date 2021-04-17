@@ -142,8 +142,13 @@ function rais_AutoShot.AutoShotBar_Create()
 		tile = true,
 		tileSize = 8,
 	}
-	
-	rais_AutoShot.Frame_Timer = CreateFrame("Frame",nil,UIParent);
+	local version = select(4, GetBuildInfo())
+
+	if version > 20500 then
+		rais_AutoShot.Frame_Timer = CreateFrame("Frame",nil,UIParent, "BackdropTemplate");
+	else
+		rais_AutoShot.Frame_Timer = CreateFrame("Frame",nil,UIParent);
+	end
 	local Frame = rais_AutoShot.Frame_Timer;
 	Frame:SetFrameLevel(1)
 	Frame:SetFrameStrata("HIGH");
@@ -398,6 +403,7 @@ if Debug == true then
 		--end
 		if event == "COMBAT_LOG_EVENT_UNFILTERED" then
 			timeStamp, event, _, sourceGUID, sourceName, sourceFlags, sourceRaidFlags, destGUID, destName, destFlags, destRaidFlags, spellID, spellName = CombatLogGetCurrentEventInfo()
+			print(CombatLogGetCurrentEventInfo())
 			if sourceGUID == UnitGUID("player") and (spellName == "Auto Shot" or spellID == 75) then
 				print(event)
 			end
@@ -642,4 +648,4 @@ SlashCmdList["RAISAUTOSHOT"] = function(msg)
 		end
 		print("Error: command \'"..cmd.."\' not recognized")
 	end
-end
+end 
