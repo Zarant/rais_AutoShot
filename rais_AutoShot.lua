@@ -30,6 +30,8 @@ local raptorStrike = GetSpellInfo(2973)
 local meleeReset = false
 local FDstate = false
 local FD = GetSpellInfo(5384)
+local steadyID = 34120
+local steadyShot = GetSpellInfo(steadyID)
 
 --local ASfailed = 0;
 local castdelay = 0;
@@ -142,13 +144,12 @@ function rais_AutoShot.AutoShotBar_Create()
 		tile = true,
 		tileSize = 8,
 	}
-	local version = select(4, GetBuildInfo())
+	--local version = select(4, GetBuildInfo())
 
-	if version > 20500 then
-		rais_AutoShot.Frame_Timer = CreateFrame("Frame",nil,UIParent, "BackdropTemplate");
-	else
-		rais_AutoShot.Frame_Timer = CreateFrame("Frame",nil,UIParent);
-	end
+    local BackdropTemplate = BackdropTemplateMixin and "BackdropTemplate" or nil
+
+    rais_AutoShot.Frame_Timer = CreateFrame("Frame",nil,UIParent, BackdropTemplate);
+
 	local Frame = rais_AutoShot.Frame_Timer;
 	Frame:SetFrameLevel(1)
 	Frame:SetFrameStrata("HIGH");
@@ -497,7 +498,7 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 		r.autoshot_latency = r.autoshot_latency or 0
 		rais_AutoShot.AutoShotBar_Create();
 		DEFAULT_CHAT_FRAME:AddMessage("|cff00ccff"..AddOn.."|cffffffff Loaded");
-	elseif event == "PLAYER_STARTED_MOVING" then
+	elseif event == "PLAYER_STARTED_MOVING" and not IsCurrentSpell(steadyID) then
 		moving = true
 		if swingStart == false then
 			Cast_Interrupted();	
@@ -579,12 +580,9 @@ Frame:SetScript("OnUpdate",function()
 				
 			end
 			Cast_Interrupted();
-			--Cast_Start();
-		end
-	end
-	
 
-	if ( swingStart ~= false ) then
+		end
+	else
 
 		relative = GetTime() - swingStart
 		
@@ -593,7 +591,10 @@ Frame:SetScript("OnUpdate",function()
 		
 		if ( relative >= swingTime ) then
 			swingStart = false;
-				Cast_Interrupted()
+            Cast_Interrupted()
+            if IsCurrentSpell(steadyID) then
+                Cast_Start();
+            end
 		end
 	end
 	autoshot_latency_update()
