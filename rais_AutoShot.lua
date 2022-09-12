@@ -1,4 +1,4 @@
-
+local version = select(4, GetBuildInfo())
 local _,class = UnitClass("player");
 if not(class == "HUNTER") then return end
 
@@ -19,6 +19,9 @@ end]]
 local Debug = false
 
 local baseCastTime = 0.50;
+if version > 30000 then
+    baseCastTime = 0.01
+end
 local castTime = baseCastTime
 --local AimedDelay = 0;
 local AutoRepeat = false
@@ -144,11 +147,10 @@ function rais_AutoShot.AutoShotBar_Create()
 		tile = true,
 		tileSize = 8,
 	}
-	--local version = select(4, GetBuildInfo())
+	local BackdropTemplate = BackdropTemplateMixin and "BackdropTemplate" or nil
 
-    local BackdropTemplate = BackdropTemplateMixin and "BackdropTemplate" or nil
 
-    rais_AutoShot.Frame_Timer = CreateFrame("Frame",nil,UIParent, BackdropTemplate);
+	rais_AutoShot.Frame_Timer = CreateFrame("Frame",nil,UIParent, BackdropTemplate);
 
 	local Frame = rais_AutoShot.Frame_Timer;
 	Frame:SetFrameLevel(1)
@@ -540,7 +542,7 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 		elseif FDstate == true then
 			castdelay = r.autoshot_latency
 			autoshot_latency_update();
-			Swing_Start(0.5);
+			Swing_Start(baseCastTime);
 			FDstate = false
 		else
 			FDstate = false
