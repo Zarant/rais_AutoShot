@@ -57,8 +57,10 @@ Table["Height"] = Table["Height"] *GetScreenHeight() /1000;
 local Lat,Background
 local autoshot_latency_update
 local openingText
+local potionText
 
 C_Spell.RequestLoadSpellData(6478)
+C_Spell.RequestLoadSpellData(441)
 
 local function UpdateFrame(self,w,h,x,y)
 
@@ -535,8 +537,9 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 			return
 		end
 		openingText = openingText or GetSpellInfo(6478)
+		potionText = potionText or GetSpellInfo(441)
 		local spellText = GetSpellInfo(arg3)
-		if spellText == openingText then
+		if spellText == openingText or spellText == potionText then
 			Swing_Start(baseCastTime);
 		end
 	elseif (event == "UNIT_AURA") then
