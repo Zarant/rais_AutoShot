@@ -302,6 +302,9 @@ local function Cast_Start()
 		swingStart = false;
 		
 	else
+		if WeakAuras and WeakAuras.ScanEvents then
+			WeakAuras.ScanEvents("AUTOSHOT_CAST_START",castTime)
+		end
 		ShowFrame()
 		--print(GetTime())
 		autoshot_latency_update()
@@ -358,12 +361,12 @@ end
 
 
 local function Swing_Start(delay)
-	if not delay then
-		delay = 0
-	end
-	
+
+	delay = delay or 0
 	swingTime = UnitRangedDamage("player") - castTime + delay;
-	
+	if WeakAuras and WeakAuras.ScanEvents then
+		WeakAuras.ScanEvents("AUTOSHOT_COOLDOWN_START",swingTime)
+	end
 	ShowFrame()
 	rais_AutoShot.Texture_Timer:SetVertexColor(1,1,1);
 	castStart = false
