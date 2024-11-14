@@ -15,26 +15,35 @@ local Table = {
 local function print(a)
 DEFAULT_CHAT_FRAME:AddMessage(a)
 end]]
-
+local IsSpellInRange = C_Spell and C_Spell.IsSpellInRange or _G.IsSpellInRange
 local Debug = false
+local meleeReset = false
 
 local baseCastTime = 0.50;
 if version > 30000 then
     baseCastTime = 0.01
+	--meleeReset = true
 end
 local castTime = baseCastTime
 --local AimedDelay = 0;
 local AutoRepeat = false
 
+local GetSpellInfo = C_Spell and C_Spell.GetSpellInfo or _G.GetSpellInfo
+
 local AutoID = 75;
 local AutoName = GetSpellInfo(AutoID)
 local pGUID = UnitGUID("player")
 local raptorStrike = GetSpellInfo(2973)
-local meleeReset = false
 local FDstate = false
 local FD = GetSpellInfo(5384)
 local steadyID = 34120
 local steadyShot = GetSpellInfo(steadyID)
+local AutoRange
+if C_Spell and C_Spell.GetSpellInfo then
+	AutoRange = AutoID
+else
+	AutoRange = AutoName
+end
 
 --local ASfailed = 0;
 local castdelay = 0;
@@ -298,7 +307,7 @@ local function Cast_Start()
 	--print(castTime)
 	
 	HideFrame()
-	if moving or IsSpellInRange(AutoName,"target") ~= 1 or not(AutoRepeat)then
+	if moving or IsSpellInRange(AutoRange,"target") ~= 1 or not(AutoRepeat)then
 		swingStart = false;
 		
 	else
@@ -588,7 +597,7 @@ Frame:SetScript("OnUpdate",function()
 	if ( swingStart == false ) then
 		
 
-		if ( moving == false ) and AutoRepeat and IsSpellInRange(AutoName,"target") then
+		if ( moving == false ) and AutoRepeat and IsSpellInRange(AutoRange,"target") then
 			if  castStart ~= false then
 				Cast_Update();
 			end
@@ -617,7 +626,7 @@ Frame:SetScript("OnUpdate",function()
 		end
 	end
 	autoshot_latency_update()
-	AutoShotRange = IsSpellInRange(AutoName,"target")
+	AutoShotRange = IsSpellInRange(AutoRange,"target")
 
 
 end)
