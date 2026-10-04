@@ -15,21 +15,32 @@ local Table = {
 local function print(a)
 DEFAULT_CHAT_FRAME:AddMessage(a)
 end]]
-local IsSpellInRange = C_Spell and C_Spell.IsSpellInRange or _G.IsSpellInRange
+
 local Debug = false
-local meleeReset = false
+local currentSpeed = 0
 
 local baseCastTime = 0.50;
-if version > 30000 then
+
+--Set to true if melee swings are supposed to reset autos (wotlk/cata)
+local meleeReset = false
+
+local classic = not WOW_PROJECT_ID == WOW_PROJECT_CAMELOT
+
+--temporary, camelot is supposed to have a 0.5s wind up time, not the case in the beta
+if version > 30000 or WOW_PROJECT_ID == WOW_PROJECT_CAMELOT then
     baseCastTime = 0.01
-	--meleeReset = true
 end
 local castTime = baseCastTime
 --local AimedDelay = 0;
 local AutoRepeat = false
-
-local GetSpellInfo = C_Spell and C_Spell.GetSpellInfo or _G.GetSpellInfo
-
+local GetSpellInfo = _G.GetSpellInfo or function(...)
+	local s = C_Spell.GetSpellInfo(...)
+	if type(s) == "table" then
+		return s.name
+	else
+		return s
+	end
+end
 local AutoID = 75;
 local AutoName = GetSpellInfo(AutoID)
 local pGUID = UnitGUID("player")
@@ -43,6 +54,21 @@ if C_Spell and C_Spell.GetSpellInfo then
 	AutoRange = AutoID
 else
 	AutoRange = AutoName
+end
+
+
+
+local IsSpellInRange = _G.IsSpellInRange or C_Spell.IsSpellInRange
+local IsCurrentSpell = _G.IsCurrentSpell or C_Spell.IsCurrentSpell
+
+local function UnitRangedDamage()
+	local as = _G.UnitRangedDamage("player")
+	if issecretvalue and issecretvalue(as) then
+		return currentSpeed
+	else
+		currentSpeed = as
+		return as
+	end
 end
 
 --local ASfailed = 0;
@@ -164,7 +190,7 @@ function rais_AutoShot.AutoShotBar_Create()
 	local BackdropTemplate = BackdropTemplateMixin and "BackdropTemplate" or nil
 
 
-	rais_AutoShot.Frame_Timer = CreateFrame("Frame",nil,UIParent, BackdropTemplate);
+	rais_AutoShot.Frame_Timer = CreateFrame("Frame","rais_AutoShotFrameTimer",UIParent, BackdropTemplate);
 
 	local Frame = rais_AutoShot.Frame_Timer;
 	Frame:SetFrameLevel(1)
@@ -206,7 +232,7 @@ function rais_AutoShot.AutoShotBar_Create()
 
 
 
-	rais_AutoShot.Frame_Timer2 = CreateFrame("Frame",nil,Frame);
+	rais_AutoShot.Frame_Timer2 = CreateFrame("Frame",'rais_AutoShotFrameTimer2',Frame);
 	local Frame2 = rais_AutoShot.Frame_Timer2;
 	Frame2:SetFrameLevel(2)
 	Frame2:SetFrameStrata("HIGH");
@@ -389,7 +415,7 @@ end
 
 
 
-local Frame = CreateFrame("Frame");
+local Frame = CreateFrame("Frame","rais_AutoShotFrame");
 Frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 Frame:RegisterEvent("UNIT_INVENTORY_CHANGED")
 Frame:RegisterEvent("UNIT_SPELLCAST_SENT")
@@ -406,7 +432,12 @@ Frame:RegisterEvent("PLAYER_STOPPED_MOVING")
 Frame:RegisterEvent("START_AUTOREPEAT_SPELL")
 Frame:RegisterEvent("STOP_AUTOREPEAT_SPELL")
 Frame:RegisterUnitEvent("UNIT_AURA","player")
-Frame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+
+if classic then
+	Frame:RegisterEvent("COMBAT_LOG_EVENT_UNFILTERED")
+else
+	Frame:RegisterEvent("PLAYER_SWING")
+end
 
 --Debug = true
 
@@ -536,6 +567,14 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 		end]]
 	elseif event == "STOP_AUTOREPEAT_SPELL" then
 		AutoRepeat = false
+	elseif event == "PLAYER_SWING" and (arg2 == 2 or meleeReset) then
+		if arg2 == 2 then
+			currentSpeed = arg1
+		end
+		castdelay = r.autoshot_latency
+		autoshot_latency_update();
+		Swing_Start();
+		return
 	end
 	
 	if arg1 ~= "player" then 
@@ -554,7 +593,7 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 		if spellText == openingText or spellText == potionText then
 			Swing_Start(baseCastTime);
 		end
-	elseif (event == "UNIT_AURA") then
+	elseif (event == "UNIT_AURA") and UnitBuff then
 		--Resets auto shot timer after feign death 
 		local buffed = false
 		for i=1,32 do 
@@ -632,12 +671,38 @@ Frame:SetScript("OnUpdate",function()
 end)
 
 
+_G.StaticPopupDialogs["rAS_WA"] = {
+    text = "Press Ctrl+C to copy the URL to your clipboard",
+    hasEditBox = 1,
+    button1 = _G.OKAY,
+    OnShow = function(self)
+		local box = getglobal(self:GetName() .. "EditBox")
+		if box then
+			box:SetWidth(275)
+			box:SetText("https://wago.io/tqUNpdb9U")
+			box:HighlightText()
+			box:SetFocus()
+		end
+    end,
+
+    EditBoxOnEscapePressed = function(self) self:GetParent():Hide() end,
+    timeout = 0,
+    whileDead = 1,
+    hideOnEscape = 1
+}
+
+local function r_WA()
+	_G.StaticPopup_Show("rAS_WA")
+end
+
+
 SLASH_RAISAUTOSHOT1 = "/raisautoshot"
 
 local 	commandList = {
 		["lock"] = {r_Lock,SLASH_RAISAUTOSHOT1.." lock | Lock/Unlock the bar, use alt+click to resize"};
 		["reset"] = {r_Reset,SLASH_RAISAUTOSHOT1.." reset | reset to the default positions"};
 		["latency"] = {r_Latency,SLASH_RAISAUTOSHOT1.." latency <number> | Sets the latency threshold indicator (in milliseconds)"};
+		["retry"] = {r_WA,SLASH_RAISAUTOSHOT1.." retry | Link to a auto shot retry timer WeakAura"};
 	}
 
 
