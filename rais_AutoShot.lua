@@ -4,6 +4,7 @@ if not(class == "HUNTER") then return end
 
 local AddOn = "rais_AutoShot"
 
+local moving = false 
 
 local Table = {
 	["posX"] = 0;
@@ -15,19 +16,50 @@ local Table = {
 local function print(a)
 DEFAULT_CHAT_FRAME:AddMessage(a)
 end]]
+local SpellCastStartEnabled = false
+local keyPressTimer = 0
+local failedTimer = 0
+local sentTimer = 0
+function RAS_KP()
+	if not moving then
+		keyPressTimer = GetTime() + 0.1
+	end
+end
+
+local function GetQuiverHaste()
+   local pattern = "CharacterBag%dSlot"
+   for i = 1,4 do
+      frame = _G[string.format(pattern,i)]
+      if frame then
+         local _, bagType = C_Container.GetContainerNumFreeSlots(frame:GetBagID())
+         if bagType and bit.band(bagType, 3) > 0 then
+            frame:GetScript("OnEnter")(frame)
+            if GameTooltip:IsShown() then
+               local text = GameTooltipTextLeft3:GetText()
+               GameTooltip:Hide()
+               local haste = tonumber(text:match("(%d+)%%")) or 0
+               haste = 1 + (haste/100)
+               return haste
+            end
+         end
+      end
+   end
+   return 1
+end
 
 local Debug = false
 local currentSpeed = 0
 
 local baseCastTime = 0.50;
+local effectiveCastTime = baseCastTime
 
 --Set to true if melee swings are supposed to reset autos (wotlk/cata)
-local meleeReset = false
+local meleeReset = true
 
 local classic = not WOW_PROJECT_ID == WOW_PROJECT_CAMELOT
 
 --temporary, camelot is supposed to have a 0.5s wind up time, not the case in the beta
-if version > 30000 or WOW_PROJECT_ID == WOW_PROJECT_CAMELOT then
+if version > 30000 then
     baseCastTime = 0.01
 end
 local castTime = baseCastTime
@@ -59,6 +91,11 @@ end
 
 
 local IsSpellInRange = _G.IsSpellInRange or C_Spell.IsSpellInRange
+if not classic then
+	IsSpellInRange = function(...)
+		return C_Spell.IsSpellInRange(...) and 1
+	end
+end
 local IsCurrentSpell = _G.IsCurrentSpell or C_Spell.IsCurrentSpell
 
 local function UnitRangedDamage()
@@ -77,7 +114,6 @@ local castStart = false;
 local swingStart = false;
 
 local r
-local moving = false 
 local swingTime
 local relative
 local InterruptTimer = 0
@@ -329,10 +365,15 @@ local function Cast_Start()
 	else
 		haste = baseSpeed/UnitRangedDamage("player")
 	end
-	castTime = baseCastTime/haste
-	--print(castTime)
+    if classic then
+	    castTime = baseCastTime/haste
+    else
+        castTime = effectiveCastTime
+    end
+    --print(castTime)
 	
 	HideFrame()
+	--print(IsSpellInRange(AutoRange,"target"))
 	if moving or IsSpellInRange(AutoRange,"target") ~= 1 or not(AutoRepeat)then
 		swingStart = false;
 		
@@ -418,13 +459,13 @@ end
 local Frame = CreateFrame("Frame","rais_AutoShotFrame");
 Frame:RegisterEvent("PLAYER_ENTERING_WORLD")
 Frame:RegisterEvent("UNIT_INVENTORY_CHANGED")
-Frame:RegisterEvent("UNIT_SPELLCAST_SENT")
+Frame:RegisterEvent("UNIT_SPELLCAST_SENT","player")
 Frame:RegisterEvent("PLAYER_LEVEL_UP")
 Frame:RegisterEvent("PLAYER_LOGIN")
 Frame:RegisterUnitEvent("UNIT_SPELLCAST_STOP","player")
 Frame:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED","player")
 Frame:RegisterUnitEvent("UNIT_SPELLCAST_FAILED","player")
---Frame:RegisterUnitEvent("UNIT_SPELLCAST_FAILED_QUIET","player")
+Frame:RegisterUnitEvent("UNIT_SPELLCAST_FAILED_QUIET","player")
 Frame:RegisterUnitEvent("UNIT_SPELLCAST_START","player")
 Frame:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED","player")
 Frame:RegisterEvent("PLAYER_STARTED_MOVING")
@@ -486,8 +527,23 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 			DEFAULT_CHAT_FRAME:AddMessage(a)
 		end
 	end
-	
-	if event == "COMBAT_LOG_EVENT_UNFILTERED" then
+
+    if not classic and (event == "UNIT_SPELLCAST_START") and arg1 == "player" and (arg3 == AutoID or arg4 == AutoID) then
+        Cast_Interrupted();	
+        swingStart = false
+        Cast_Start()
+        SpellCastStartEnabled = true
+		--print('ok',castTime)
+        return
+    elseif event == "UNIT_SPELLCAST_SENT" and arg1 == "player" and (arg3 == AutoID or arg4 == AutoID) then
+		sentTimer = GetTime()
+		return
+	end
+	--print(event,arg1,arg2,arg3,arg4)
+    
+	if event == "UNIT_SPELLCAST_FAILED_QUIET" and arg1 == "player" and arg3 == AutoID then
+		failedTimer  = GetTime()
+	elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
 		timeStamp, event, _, sourceGUID, sourceName, sourceFlags, sourceRaidFlags, destGUID, destName, destFlags, destRaidFlags, spellID, spellName, x3, x4, x5 = CombatLogGetCurrentEventInfo()
 			
 			--[[
@@ -507,6 +563,7 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 					Cast_Interrupted();	
 					swingStart = false
 					Cast_Start()
+					SpellCastStartEnabled = true
 				end
 				
 			end
@@ -562,6 +619,9 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 		end]]
 	elseif event == "START_AUTOREPEAT_SPELL" then
 		AutoRepeat = true
+        if not classic then
+            effectiveCastTime = baseCastTime/GetQuiverHaste()
+        end
 		--[[if rais_AutoShot.Frame_Timer:GetAlpha() == 0 then
 			Cast_Interrupted()
 		end]]
@@ -588,9 +648,10 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 			return
 		end
 		openingText = openingText or GetSpellInfo(6478)
+		openingText2 = openingText2 or GetSpellInfo(22810)
 		potionText = potionText or GetSpellInfo(441)
 		local spellText = GetSpellInfo(arg3)
-		if spellText == openingText or spellText == potionText then
+		if spellText == openingText or spellText == potionText or spellText == openingText2 then
 			Swing_Start(baseCastTime);
 		end
 	elseif (event == "UNIT_AURA") and UnitBuff then
@@ -635,10 +696,12 @@ Frame:SetScript("OnUpdate",function()
 	
 	if ( swingStart == false ) then
 		
-
+		local gt = GetTime()
 		if ( moving == false ) and AutoRepeat and IsSpellInRange(AutoRange,"target") then
 			if  castStart ~= false then
 				Cast_Update();
+			elseif not classic and not SpellCastStartEnabled and not castStart and (gt > failedTimer + 0.5 or gt < keyPressTimer) and gt > sentTimer + effectiveCastTime then
+				Cast_Start();
 			end
 		else
 			if castdelay < 0 then
@@ -647,7 +710,7 @@ Frame:SetScript("OnUpdate",function()
 				
 			end
 			Cast_Interrupted();
-
+	
 		end
 	else
 
@@ -659,7 +722,7 @@ Frame:SetScript("OnUpdate",function()
 		if ( relative >= swingTime ) then
 			swingStart = false;
             Cast_Interrupted()
-            if IsCurrentSpell(steadyID) then
+            if not classic and not moving or IsCurrentSpell(steadyID) then
                 Cast_Start();
             end
 		end
