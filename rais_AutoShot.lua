@@ -20,11 +20,9 @@ local SpellCastStartEnabled = false
 local keyPressTimer = 0
 local failedTimer = 0
 local sentTimer = 0
-function RAS_KP()
-	if not moving then
-		keyPressTimer = GetTime() + 0.1
-	end
-end
+
+
+
 
 local function GetQuiverHaste()
    local pattern = "CharacterBag%dSlot"
@@ -52,7 +50,7 @@ local currentSpeed = 0
 
 local baseCastTime = 0.50;
 local effectiveCastTime = baseCastTime
-
+local castEndTimer = 0
 --Set to true if melee swings are supposed to reset autos (wotlk/cata)
 local meleeReset = true
 
@@ -88,7 +86,27 @@ else
 	AutoRange = AutoName
 end
 
+function RAS_KP()
+	if not moving then
+		keyPressTimer = GetTime() + 0.1
+	end
+end
 
+local macroString = strlower("!"..AutoName)
+if not classic then
+	hooksecurefunc('UseAction',function(actionId)
+		local t,id = GetActionInfo(actionId)
+		if id == 75 then
+			return RAS_KP()
+		elseif t == "macro" then
+			local macro = GetMacroBody(id)
+			if macro and strlower(macro):find(macroString) then
+				return RAS_KP()
+			end
+		end
+
+	end)
+end
 
 local IsSpellInRange = _G.IsSpellInRange or C_Spell.IsSpellInRange
 if not classic then
@@ -277,8 +295,6 @@ function rais_AutoShot.AutoShotBar_Create()
 	Frame2:SetPoint("CENTER",Frame,"CENTER");
 	Frame2:SetAlpha(1);
 
-
-
 	rais_AutoShot.Texture_Timer = Frame2:CreateTexture(nil,"OVERLAY"); --overlay
 	local Bar = rais_AutoShot.Texture_Timer;
 	Bar:SetHeight(r.h);
@@ -317,6 +333,10 @@ function rais_AutoShot.AutoShotBar_Create()
 	Border:SetWidth(r.w +4);
 	Border:SetHeight(r.h +4);
 	Border:SetColorTexture(1,1,1);
+
+	if rais_AutoShotFrameTimer.Center then
+		rais_AutoShotFrameTimer.Center:Hide()
+ 	end
 end
 
 local isLocked = true
@@ -404,7 +424,7 @@ end
 
 
 local function Cast_Interrupted()
-	
+	castEndTimer = 0
 	if swingStart == false then
 		HideFrame()
 	end
@@ -419,6 +439,7 @@ local function Cast_Update()
 	if ( relative > castTime ) then
 		castStart = false;
 		HideFrame()
+		castEndTimer = GetTime()
 	elseif ( swingStart == false ) then
 		--if  (UnitCastingInfo("player") ~= nil or IsCurrentSpell("Steady Shot") or IsCurrentSpell("Multi-Shot")) then --or InterruptTimer > GetTime()
 		--	Cast_Interrupted()
@@ -443,6 +464,7 @@ local function Swing_Start(delay)
 	if WeakAuras and WeakAuras.ScanEvents then
 		WeakAuras.ScanEvents("AUTOSHOT_COOLDOWN_START",swingTime)
 	end
+	castEndTimer = 0
 	ShowFrame()
 	rais_AutoShot.Texture_Timer:SetVertexColor(1,1,1);
 	castStart = false
@@ -607,10 +629,12 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 		DEFAULT_CHAT_FRAME:AddMessage("|cff00ccff"..AddOn.."|cffffffff Loaded");
 	elseif event == "PLAYER_STARTED_MOVING" and not IsCurrentSpell(steadyID) then
 		moving = true
+		castEndTimer = 0
 		if swingStart == false then
 			Cast_Interrupted();	
 		end 
 	elseif event == "PLAYER_STOPPED_MOVING" then
+		castEndTimer = 0
 		moving = false
 		--[[
 		if rais_AutoShot.Frame_Timer:GetAlpha() == 0 then
@@ -700,7 +724,7 @@ Frame:SetScript("OnUpdate",function()
 		if ( moving == false ) and AutoRepeat and IsSpellInRange(AutoRange,"target") then
 			if  castStart ~= false then
 				Cast_Update();
-			elseif not classic and not SpellCastStartEnabled and not castStart and (gt > failedTimer + 0.5 or gt < keyPressTimer) and gt > sentTimer + effectiveCastTime then
+			elseif not classic and not SpellCastStartEnabled and not castStart and (gt > failedTimer + 0.5 or gt < keyPressTimer) and (castEndTimer + 0.25 < gt) then
 				Cast_Start();
 			end
 		else
@@ -760,14 +784,20 @@ end
 
 
 SLASH_RAISAUTOSHOT1 = "/raisautoshot"
+SLASH_RAISAUTOSHOT2 = "/ras"
 
-local 	commandList = {
+local	commandList = {
 		["lock"] = {r_Lock,SLASH_RAISAUTOSHOT1.." lock | Lock/Unlock the bar, use alt+click to resize"};
 		["reset"] = {r_Reset,SLASH_RAISAUTOSHOT1.." reset | reset to the default positions"};
 		["latency"] = {r_Latency,SLASH_RAISAUTOSHOT1.." latency <number> | Sets the latency threshold indicator (in milliseconds)"};
 		["retry"] = {r_WA,SLASH_RAISAUTOSHOT1.." retry | Link to a auto shot retry timer WeakAura"};
+		--["kp"] = {RAS_KP,SLASH_RAISAUTOSHOT1.." kp | Updates the keypress timer, use that with /cast !Auto Shot macros"};
 	}
-
+if classic then
+	commandList["kp"] = nil
+else
+	commandList["latency"] = nil
+end
 
 SlashCmdList["RAISAUTOSHOT"] = function(msg)
 	_,_,cmd,arg = strfind(msg,"%s?(%w+)%s?(.*)")
@@ -796,12 +826,14 @@ SlashCmdList["RAISAUTOSHOT"] = function(msg)
 		end
 		--print("For more info type "..SLASH_RAISAUTOSHOT1.." help <command>")
 	else
-		for command,entry in pairs(commandList) do
-			if cmd == command then
-				entry[1](arg)
-				return 
-			end
-		end
+		-- for command,entry in pairs(commandList) do
+		-- 	if cmd == command then
+		-- 		entry[1](arg)
+		-- 		return
+		-- 	end
+		-- end
+		local command = commandList[cmd]
+		if command then return command[1](arg) end
 		print("Error: command \'"..cmd.."\' not recognized")
 	end
-end 
+end
