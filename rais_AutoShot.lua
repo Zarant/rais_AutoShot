@@ -26,6 +26,7 @@ local sentTimer = 0
 
 local function GetQuiverHaste()
    local pattern = "CharacterBag%dSlot"
+   if GameTooltip:IsForbidden() then return end
    for i = 1,4 do
       frame = _G[string.format(pattern,i)]
       if frame then
@@ -52,7 +53,9 @@ local baseCastTime = 0.50;
 local effectiveCastTime = baseCastTime
 local castEndTimer = 0
 --Set to true if melee swings are supposed to reset autos (wotlk/cata)
-local meleeReset = true
+local meleeReset = function()
+	return raisAutoShotOptions.meleeReset
+end
 
 local classic = not WOW_PROJECT_ID == WOW_PROJECT_CAMELOT
 
@@ -119,6 +122,18 @@ local IsCurrentSpell = _G.IsCurrentSpell or C_Spell.IsCurrentSpell
 local function UnitRangedDamage()
 	local as = _G.UnitRangedDamage("player")
 	if issecretvalue and issecretvalue(as) then
+		local tooltipValue = 0
+		if not GameTooltip:IsForbidden() then
+			GameTooltip:SetOwner(WorldFrame, "ANCHOR_BOTTOMRIGHT")
+			GameTooltip:SetSpellByID(75)
+			GameTooltip:Show()
+			local text = GameTooltipTextRight3:GetText()
+			tooltipValue = tonumber(text:match("%d+%.?%d*")) or currentSpeed
+			GameTooltip:Hide()
+			if math.abs((currentSpeed/tooltipValue)-1) > 0.1 then
+				return math.min(tooltipValue + 0.025,currentSpeed)
+			end
+		end
 		return currentSpeed
 	else
 		currentSpeed = as
@@ -213,7 +228,7 @@ function r_Latency(arg)
 		r.autoshot_latency = 0
 		print(AddOn..': Error, couldn\'t set Auto shot latency to '..arg)
 	end
-		
+
 	if r.autoshot_latency < 0 then
 		r.autoshot_latency = 0
 	elseif r.autoshot_latency > 350 then
@@ -235,7 +250,7 @@ function rais_AutoShot.AutoShotBar_Create()
 	r.h = r.h or Table["Height"]
 	r.point = r.point or "CENTER"
 	r.relativePoint = r.relativePoint or "CENTER"
-	
+
 	local backdrop = {
 		bgFile = "Interface/BUTTONS/WHITE8X8",
 		tile = true,
@@ -358,12 +373,12 @@ local function r_Lock()
 	end
 	isLocked = not(isLocked)
 end
-	
+
 function autoshot_latency_update()
-	
+
 	Lat:SetWidth(r.w * (castTime - castdelay)/castTime);
 	Background:SetDrawLayer("ARTWORK")
-	
+
 end
 
 
@@ -378,7 +393,7 @@ local function HideFrame()
 end
 
 local function Cast_Start()
-	
+
 	local haste
 	if baseSpeed == 0 then
 		haste = 1
@@ -391,12 +406,12 @@ local function Cast_Start()
         castTime = effectiveCastTime
     end
     --print(castTime)
-	
+
 	HideFrame()
 	--print(IsSpellInRange(AutoRange,"target"))
 	if moving or IsSpellInRange(AutoRange,"target") ~= 1 or not(AutoRepeat)then
 		swingStart = false;
-		
+
 	else
 		if WeakAuras and WeakAuras.ScanEvents then
 			WeakAuras.ScanEvents("AUTOSHOT_CAST_START",castTime)
@@ -417,8 +432,8 @@ local function Cast_Start()
 			--print(IsCurrentSpell("Steady Shot")) -- steadyshot
 		--end
 	end
-	
-	
+
+
 end
 
 
@@ -429,13 +444,13 @@ local function Cast_Interrupted()
 		HideFrame()
 	end
 	castStart = false
-	
+
 end
 
 local function Cast_Update()
 	ShowFrame()
 	relative = GetTime() - castStart;
-	
+
 	if ( relative > castTime ) then
 		castStart = false;
 		HideFrame()
@@ -451,7 +466,7 @@ local function Cast_Update()
 		rais_AutoShot.Texture_Timer:SetVertexColor(0,0,0.5);		
 
 	end
-	
+
 end
 
 
@@ -470,7 +485,7 @@ local function Swing_Start(delay)
 	castStart = false
 	swingStart = GetTime();
 
-	
+
 end
 
 
@@ -562,12 +577,12 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 		return
 	end
 	--print(event,arg1,arg2,arg3,arg4)
-    
+
 	if event == "UNIT_SPELLCAST_FAILED_QUIET" and arg1 == "player" and arg3 == AutoID then
 		failedTimer  = GetTime()
 	elseif event == "COMBAT_LOG_EVENT_UNFILTERED" then
 		timeStamp, event, _, sourceGUID, sourceName, sourceFlags, sourceRaidFlags, destGUID, destName, destFlags, destRaidFlags, spellID, spellName, x3, x4, x5 = CombatLogGetCurrentEventInfo()
-			
+
 			--[[
 			if sourceGUID == pGUID then dd = "true" else dd = "false" end
 			print(event..'-'..spellName..':'..dd)
@@ -578,8 +593,8 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 			end]]
 		if sourceGUID == pGUID then
 
-			
-				
+
+
 			if (spellName == AutoName) then -- and castStart == false then --autoshot
 				if (event == "SPELL_CAST_START") then
 					Cast_Interrupted();	
@@ -587,9 +602,9 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 					Cast_Start()
 					SpellCastStartEnabled = true
 				end
-				
+
 			end
-			if meleeReset == true then
+			if meleeReset() == true then
 				if (event == "SWING_DAMAGE") or (event == "SWING_MISSED") then
 					Swing_Start()
 				elseif ((event == "SPELL_DAMAGE") or (event == "SPELL_MISSED")) and string.find(spellName,raptorStrike) then
@@ -603,11 +618,11 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 		autoshot_latency_update();
 		Swing_Start();
 	elseif (event == "UNIT_INVENTORY_CHANGED" and arg1 == "player") or event == "PLAYER_ENTERING_WORLD" then
-		
+
 		GameTooltip:SetOwner(rais_AutoShot.Frame_Timer, "ANCHOR_RIGHT")
 		GameTooltip:SetInventoryItem("player",18)
-		
-		
+
+
 		for n = 2,GameTooltip:NumLines() do
 			local text = getglobal("GameTooltipTextRight"..n):GetText()
 			if text then
@@ -617,16 +632,19 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 				end
 			end
 		end
-		
+
 		GameTooltip:Hide();
 		--print(baseSpeed)
-		
+
 	elseif ( event == "PLAYER_LOGIN" ) then
 		raisAutoShotOptions = raisAutoShotOptions or {}
 		r = raisAutoShotOptions
 		r.autoshot_latency = r.autoshot_latency or 0
 		rais_AutoShot.AutoShotBar_Create();
 		DEFAULT_CHAT_FRAME:AddMessage("|cff00ccff"..AddOn.."|cffffffff Loaded");
+		if not raisAutoShotOptions.meleeReset then
+			 raisAutoShotOptions.meleeReset = not classic
+		end
 	elseif event == "PLAYER_STARTED_MOVING" and not IsCurrentSpell(steadyID) then
 		moving = true
 		castEndTimer = 0
@@ -651,7 +669,7 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 		end]]
 	elseif event == "STOP_AUTOREPEAT_SPELL" then
 		AutoRepeat = false
-	elseif event == "PLAYER_SWING" and (arg2 == 2 or meleeReset) then
+	elseif event == "PLAYER_SWING" and (arg2 == 2 or meleeReset()) then
 		if arg2 == 2 then
 			currentSpeed = arg1
 		end
@@ -660,7 +678,7 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 		Swing_Start();
 		return
 	end
-	
+
 	if arg1 ~= "player" then 
 		return
 	end
@@ -713,13 +731,10 @@ Frame:SetScript("OnEvent",function(self,event,arg1,arg2,arg3,arg4)
 end)
 
 local AutoShotRange = 0
-
+local xpos,ypos,mapId
 Frame:SetScript("OnUpdate",function()
-	
-	
-	
+
 	if ( swingStart == false ) then
-		
 		local gt = GetTime()
 		if ( moving == false ) and AutoRepeat and IsSpellInRange(AutoRange,"target") then
 			if  castStart ~= false then
@@ -729,20 +744,29 @@ Frame:SetScript("OnUpdate",function()
 			end
 		else
 			if castdelay < 0 then
-				
+
 				castdelay = 0
-				
+
 			end
 			Cast_Interrupted();
-	
+
+		end
+		if not SpellCastStartEnabled then
+			local x,y,_,map = UnitPosition('player')
+			if x ~= xpos or y ~= ypos or map ~= mapId then
+				Cast_Interrupted()
+			end
+			xpos = x
+			ypos = y
+			mapId = map
 		end
 	else
 
 		relative = GetTime() - swingStart
-		
+
 		rais_AutoShot.Texture_Timer:SetWidth(r.w*(1 - (relative/swingTime)));
 		rais_AutoShot.Texture_Timer:SetVertexColor(1,1,1);
-		
+
 		if ( relative >= swingTime ) then
 			swingStart = false;
             Cast_Interrupted()
@@ -782,6 +806,10 @@ local function r_WA()
 	_G.StaticPopup_Show("rAS_WA")
 end
 
+local function r_MR()
+	raisAutoShotOptions.meleeReset = not raisAutoShotOptions.meleeReset
+	print("Melee Swing Reset Set to",raisAutoShotOptions.meleeReset)
+end
 
 SLASH_RAISAUTOSHOT1 = "/raisautoshot"
 SLASH_RAISAUTOSHOT2 = "/ras"
@@ -792,7 +820,10 @@ local	commandList = {
 		["latency"] = {r_Latency,SLASH_RAISAUTOSHOT1.." latency <number> | Sets the latency threshold indicator (in milliseconds)"};
 		["retry"] = {r_WA,SLASH_RAISAUTOSHOT1.." retry | Link to a auto shot retry timer WeakAura"};
 		--["kp"] = {RAS_KP,SLASH_RAISAUTOSHOT1.." kp | Updates the keypress timer, use that with /cast !Auto Shot macros"};
+		["meleereset"] = {r_MR,SLASH_RAISAUTOSHOT1.." meleereset | Toggles between melee swing time reset enabled/disabled"}
 	}
+
+
 if classic then
 	commandList["kp"] = nil
 else
